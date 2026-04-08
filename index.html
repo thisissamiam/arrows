@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Custom Language Editor (Real Parser)</title>
+  <title>Custom Language Editor (Final Parser)</title>
   <style>
     body { margin: 0; font-family: monospace; background: #1e1e1e; color: #fff; }
     #container { display: flex; flex-direction: column; height: 100vh; }
@@ -36,8 +36,7 @@ require(['vs/editor/editor.main'], function () {
   });
 });
 
-// ===== REAL PARSER =====
-
+// ===== TOKENIZER =====
 function tokenize(input) {
   let tokens = [];
   let i = 0;
@@ -46,14 +45,14 @@ function tokenize(input) {
     if (input[i] === '>') {
       let start = i;
       while (i < input.length && input[i] === '>') i++;
-      let arrows = input.slice(start, i);
 
       let rest = '';
       while (i < input.length && input[i] !== ' ' && input[i] !== '\n') {
+        if (input[i] === '[' || input[i] === ']') break;
         rest += input[i++];
       }
 
-      tokens.push(arrows + rest);
+      tokens.push(input.slice(start, start + (i - start) + rest.length));
     } else if (input[i] === '[') {
       let start = i;
       let depth = 1;
@@ -78,19 +77,13 @@ function countArrows(str) {
   return i;
 }
 
+// ===== PARSER =====
 function parseBlock(block) {
-  let statements = [];
   let tokens = tokenize(block);
-
-  for (let token of tokens) {
-    statements.push(parseStatement(token));
-  }
-
-  return statements;
+  return tokens.map(parseStatement);
 }
 
 function parseStatement(token) {
-  // Loop
   if (token.includes('[')) {
     let arrows = countArrows(token);
     let inner = token.slice(token.indexOf('[') + 1, token.lastIndexOf(']'));
@@ -101,7 +94,6 @@ function parseStatement(token) {
     };
   }
 
-  // Variable assignment
   if (token.includes('-=>')) {
     let [left, right] = token.split('-=>');
     return {
@@ -111,7 +103,6 @@ function parseStatement(token) {
     };
   }
 
-  // Variable print
   if (token.includes('->')) {
     return {
       type: 'varPrint',
@@ -119,33 +110,44 @@ function parseStatement(token) {
     };
   }
 
-  // Print
   if (token.startsWith('>')) {
     return {
       type: 'print',
-      dots: token.slice(1)
+      arrows: countArrows(token),
+      dots: token.slice(countArrows(token))
     };
   }
 
   return { type: 'noop' };
 }
 
-function execute(ast, variables, outputObj) {
+// ===== EXECUTION =====
+function execute(ast, variables, out) {
 
   function parseValue(token) {
-    if (token.includes('.')) return token.length;
-    return parseInt(token) || 0;
+    let arrows = 0;
+    while (arrows < token.length && token[arrows] === '>') arrows++;
+
+    let dots = token.slice(arrows);
+
+    // If numeric mode (...), use arrow count as value
+    if (dots === '...') return arrows;
+
+    // fallback: dot length
+    return dots.length || 0;
   }
 
   for (let node of ast) {
 
     if (node.type === 'print') {
-      let d = node.dots;
-      if (d === '.') outputObj.value += 'a';
-      else if (d === '..') outputObj.value += 'A';
-      else if (d === '...') outputObj.value += '1';
-      else if (d === '....') outputObj.value += '@';
-      else outputObj.value += '?';
+      let dots = node.dots;
+      let arrows = node.arrows;
+
+      if (dots === '.') out.value += 'a';
+      else if (dots === '..') out.value += 'A';
+      else if (dots === '...') out.value += String(arrows);
+      else if (dots === '....') out.value += '@';
+      else out.value += '?';
     }
 
     else if (node.type === 'assign') {
@@ -153,29 +155,29 @@ function execute(ast, variables, outputObj) {
     }
 
     else if (node.type === 'varPrint') {
-      outputObj.value += (variables[node.varIndex] || 0);
+      out.value += (variables[node.varIndex] || 0);
     }
 
     else if (node.type === 'loop') {
       for (let i = 0; i < node.count; i++) {
-        execute(node.body, variables, outputObj);
+        execute(node.body, variables, out);
       }
     }
   }
 }
 
+// ===== RUN =====
 function runCode() {
   const input = editor.getValue();
-
   let ast = parseBlock(input);
+
   let variables = {};
-  let outputObj = { value: '' };
+  let out = { value: '' };
 
-  execute(ast, variables, outputObj);
+  execute(ast, variables, out);
 
-  document.getElementById('output').textContent = outputObj.value;
+  document.getElementById('output').textContent = out.value;
 }
-
 </script>
 
 </body>
