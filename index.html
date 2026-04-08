@@ -1,106 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Custom Language IDE</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: monospace;
-      background: #1e1e1e;
-      color: #ccc;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    #topbar {
-      height: 40px;
-      background: #2d2d2d;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      gap: 10px;
-      border-bottom: 1px solid #000;
-    }
-
-    button {
-      background: #3a3a3a;
-      border: none;
-      color: white;
-      padding: 5px 10px;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-
-    button:hover {
-      background: #505050;
-    }
-
-    #main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    #editor {
-      width: 65%;
-      height: 100%;
-      border-right: 1px solid #000;
-    }
-
-    #rightPanel {
-      width: 35%;
-      display: flex;
-      flex-direction: column;
-      background: #1b1b1b;
-    }
-
-    #outputHeader {
-      padding: 8px;
-      background: #2d2d2d;
-      border-bottom: 1px solid #000;
-      font-size: 13px;
-      color: #aaa;
-    }
-
-    #output {
-      flex: 1;
-      padding: 10px;
-      color: #00ff88;
-      overflow: auto;
-      white-space: pre-wrap;
-    }
-
-    #statusBar {
-      height: 22px;
-      background: #007acc;
-      color: white;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      font-size: 12px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>Custom Language IDE (Real Engine)</title>
+<style>
+body{margin:0;font-family:monospace;background:#1e1e1e;color:#ccc;display:flex;flex-direction:column;height:100vh}
+#topbar{height:40px;background:#2d2d2d;display:flex;align-items:center;padding:0 10px;gap:10px}
+button{background:#3a3a3a;border:none;color:#fff;padding:5px 10px;cursor:pointer}
+#main{display:flex;flex:1}
+#editor{width:65%}
+#right{width:35%;display:flex;flex-direction:column;background:#1b1b1b}
+#output{flex:1;padding:10px;color:#00ff88;white-space:pre-wrap}
+</style>
 </head>
 <body>
 
 <div id="topbar">
-  <button onclick="runCode()">▶ Run</button>
+<button onclick="runCode()">▶ Run</button>
 </div>
 
 <div id="main">
-  <div id="editor"></div>
-
-  <div id="rightPanel">
-    <div id="outputHeader">Output</div>
-    <div id="output"></div>
-  </div>
+<div id="editor"></div>
+<div id="right">
+<div style="padding:8px;background:#2d2d2d">Output</div>
+<div id="output"></div>
+</div>
 </div>
 
-<div id="statusBar">Ready</div>
-
 <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
+<script src="https://unpkg.com/nearley@2.20.1/lib/nearley.js"></script>
+<script src="https://unpkg.com/nearley@2.20.1/lib/compile.js"></script>
+<script src="https://unpkg.com/nearley@2.20.1/lib/generate.js"></script>
+<script src="https://unpkg.com/nearley@2.20.1/lib/nearley-language-bootstrapped.js"></script>
+
 <script>
 let editor;
 
@@ -115,138 +47,76 @@ require(['vs/editor/editor.main'], function () {
   });
 });
 
-// ===== CORE ENGINE (UNCHANGED) =====
-function tokenize(input) {
-  let tokens = [];
-  let i = 0;
+// ===== GRAMMAR =====
+const grammarSource = `
+main -> statement:+ {% d => d[0] %}
 
-  while (i < input.length) {
-    if (input[i] === '>') {
-      let start = i;
-      while (i < input.length && input[i] === '>') i++;
+statement -> loop | assign | varPrint | print
 
-      let rest = '';
-      while (i < input.length && input[i] !== ' ' && input[i] !== '\n') {
-        if (input[i] === '[' || input[i] === ']') break;
-        rest += input[i++];
-      }
+loop -> arrows "[" statement:+ "]" {% d => ({type:'loop',count:d[0],body:d[2]}) %}
+assign -> arrows "-=>" value {% d => ({type:'assign',varIndex:d[0],value:d[2]}) %}
+varPrint -> arrows "->" {% d => ({type:'varPrint',varIndex:d[0]}) %}
+print -> arrows dots {% d => ({type:'print',arrows:d[0],dots:d[1]}) %}
 
-      tokens.push(input.slice(start, i));
-    } else if (input[i] === '[') {
-      let start = i;
-      let depth = 1;
-      i++;
-      while (i < input.length && depth > 0) {
-        if (input[i] === '[') depth++;
-        if (input[i] === ']') depth--;
-        i++;
-      }
-      tokens.push(input.slice(start, i));
-    } else {
-      i++;
-    }
-  }
+arrows -> ">" arrows {% d => d[1]+1 %} | ">" {% () => 1 %}
+dots -> "." dots {% d => d[1]+1 %} | "." {% () => 1 %}
+value -> dots {% d => d[0] %}
+`;
 
-  return tokens;
-}
+// Compile grammar
+const parserGrammar = nearley.Grammar.fromCompiled((() => {
+  const parser = new nearley.Parser(nearley.Grammar.fromCompiled(nearleyLanguage));
+  parser.feed(grammarSource);
+  const compilation = compile(parser.results[0], {});
+  const js = generate(compilation, "grammar");
+  return eval(js);
+})());
 
-function countArrows(str) {
-  let i = 0;
-  while (i < str.length && str[i] === '>') i++;
-  return i;
-}
-
-function parseBlock(block) {
-  let tokens = tokenize(block);
-  return tokens.map(parseStatement);
-}
-
-function parseStatement(token) {
-  if (token.includes('[')) {
-    let arrows = countArrows(token);
-    let inner = token.slice(token.indexOf('[') + 1, token.lastIndexOf(']'));
-    return {
-      type: 'loop',
-      count: arrows,
-      body: parseBlock(inner)
-    };
-  }
-
-  if (token.includes('-=>')) {
-    let [left, right] = token.split('-=>');
-    return {
-      type: 'assign',
-      varIndex: countArrows(left),
-      valueToken: right
-    };
-  }
-
-  if (token.includes('->')) {
-    return {
-      type: 'varPrint',
-      varIndex: countArrows(token.split('->')[0])
-    };
-  }
-
-  if (token.startsWith('>')) {
-    return {
-      type: 'print',
-      arrows: countArrows(token),
-      dots: token.slice(countArrows(token))
-    };
-  }
-
-  return { type: 'noop' };
-}
-
-function execute(ast, variables, out) {
-
-  function parseValue(token) {
-    let arrows = countArrows(token);
-    let dots = token.slice(arrows);
-    if (dots === '...') return arrows;
-    return dots.length || 0;
-  }
-
-  for (let node of ast) {
-
-    if (node.type === 'print') {
-      let { dots, arrows } = node;
-
-      if (dots === '.') out.value += 'a';
-      else if (dots === '..') out.value += 'A';
-      else if (dots === '...') out.value += String(arrows);
-      else if (dots === '....') out.value += '@';
-      else out.value += '?';
+// ===== EXECUTION =====
+function execute(ast, vars, out){
+  for(const node of ast){
+    if(node.type==='print'){
+      if(node.dots===1) out.value += String.fromCharCode(96+node.arrows);
+      else if(node.dots===2) out.value += String.fromCharCode(64+node.arrows);
+      else if(node.dots===3) out.value += String(node.arrows);
+      else if(node.dots===4) out.value += "@";
+      else out.value += "?";
     }
 
-    else if (node.type === 'assign') {
-      variables[node.varIndex] = parseValue(node.valueToken);
+    else if(node.type==='assign'){
+      vars[node.varIndex] = node.value;
     }
 
-    else if (node.type === 'varPrint') {
-      out.value += (variables[node.varIndex] || 0);
+    else if(node.type==='varPrint'){
+      out.value += (vars[node.varIndex]||0);
     }
 
-    else if (node.type === 'loop') {
-      for (let i = 0; i < node.count; i++) {
-        execute(node.body, variables, out);
+    else if(node.type==='loop'){
+      for(let i=0;i<node.count;i++){
+        execute(node.body,vars,out);
       }
     }
   }
 }
 
-function runCode() {
-  const input = editor.getValue();
-  let ast = parseBlock(input);
+// ===== RUN =====
+function runCode(){
+  try{
+    const input = editor.getValue();
+    const parser = new nearley.Parser(parserGrammar);
+    parser.feed(input);
 
-  let variables = {};
-  let out = { value: '' };
+    const ast = parser.results[0];
 
-  execute(ast, variables, out);
+    let vars = {};
+    let out = {value:""};
 
-  document.getElementById('output').textContent = out.value;
-  document.getElementById('statusBar').textContent = 'Ran successfully';
+    execute(ast,vars,out);
+
+    document.getElementById("output").textContent = out.value;
+  }catch(e){
+    document.getElementById("output").textContent = "Error: "+e.message;
+  }
 }
 </script>
 
