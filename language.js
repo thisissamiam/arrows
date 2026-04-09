@@ -1,4 +1,4 @@
-const grammar = {
+window.grammar = {
   Lexer: undefined,
   ParserRules: [
     {"name":"main","symbols":["statement"],"postprocess":d=>[d[0]]},
