@@ -11,6 +11,7 @@ window.addEventListener("DOMContentLoaded", () => {
       worker.terminate();
       worker = null;
     }
+    runBtn.disabled = false;
   }
 
   window.runCode = function runCode(){
@@ -18,45 +19,46 @@ window.addEventListener("DOMContentLoaded", () => {
       clearWorker();
       outputEl.textContent = "";
 
+      const code = document.getElementById("editor").value;
+      if (!code.trim()) {
+        outputEl.textContent = "No code to run.";
+        return;
+      }
+
+      runBtn.disabled = true;
+
       worker = new Worker('worker.js');
 
       worker.onmessage = function(e){
-        try {
-          const data = e.data;
-          if (!data) return;
+        const data = e.data;
+        if (!data) return;
 
-          if (data.type === 'result') {
-            outputEl.textContent = String(data.result);
-            clearWorker();
-          } else if (data.type === 'error') {
-            alert("Interpreter Error:\n" + data.message);
-            outputEl.textContent = "Error: " + data.message;
-            clearWorker();
-          } else if (data.type === 'input-request') {
-            const value = prompt(data.prompt || "Input:");
-            worker.postMessage({ type: 'input-response', id: data.id, value });
-          } else if (typeof data === 'string') {
-            outputEl.textContent = data;
-            clearWorker();
-          }
-        } catch (err) {
-          alert("UI Error:\n" + err.message);
+        if (data.type === 'result') {
+          outputEl.textContent = String(data.result);
+          clearWorker();
+        } else if (data.type === 'error') {
+          outputEl.textContent = "Error: " + data.message;
+          clearWorker();
+        } else if (data.type === 'input-request') {
+          const value = prompt(data.prompt || "Input:");
+          worker.postMessage({ type: 'input-response', id: data.id, value });
+        } else if (typeof data === 'string') {
+          outputEl.textContent = data;
+          clearWorker();
         }
       };
 
       worker.onerror = function(ev){
-        const msg = ev.message || ev.error?.message || "Worker error";
-        alert("Worker Error:\n" + msg);
+        const msg = ev.message || "Worker error";
         outputEl.textContent = "Error: " + msg;
         clearWorker();
       };
 
-      const code = document.getElementById("editor").value;
       worker.postMessage(code);
 
     } catch (err) {
-      alert("Run Error:\n" + err.message);
       outputEl.textContent = "Error: " + err.message;
+      clearWorker();
     }
   };
 
@@ -67,6 +69,7 @@ window.addEventListener("DOMContentLoaded", () => {
       worker.terminate();
       worker = null;
       outputEl.textContent = "Execution terminated.";
+      runBtn.disabled = false;
     }
   });
 
