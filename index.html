@@ -3,15 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <title>Arrows</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🔥</text></svg>" />
 <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <div id="topbar">
-  <div class="logo">> Arrows</div>
-  <button onclick="runCode()">▶ Run</button>
+  <div class="logo">Arrows</div>
+  <div>
+    <button id="runBtn">▶ Run</button>
+    <button id="stopBtn">■ Stop</button>
+  </div>
 </div>
 
 <div id="main">
@@ -27,6 +29,8 @@
   </div>
 
 </div>
+
+<script src="https://unpkg.com/nearley@2.20.1/lib/nearley.js"></script>
 <script src="language.js"></script>
 <script src="editor.js"></script>
 <script src="run.js"></script>
