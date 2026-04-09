@@ -1,40 +1,101 @@
-function execute(ast, vars, out){
-  for(const node of ast){
-    if(node.type==="print"){
-      if(node.dots===1) out.value+=String.fromCharCode(96+node.arrows);
-      else if(node.dots===2) out.value+=String.fromCharCode(64+node.arrows);
-      else if(node.dots===3) out.value+=String(node.arrows);
-      else out.value+="?";
-    }
-    else if(node.type==="assign") vars[node.varIndex]=node.value;
-    else if(node.type==="varPrint") out.value+=(vars[node.varIndex]||0);
-    else if(node.type==="loop"){
-      for(let i=0;i<node.count;i++) execute(node.body,vars,out);
-    }
+function runCode(){
+  const code = window.editor.value;
+  try{
+    const result = interpret(code);
+    document.getElementById("output").textContent = result;
+  } catch(e){
+    document.getElementById("output").textContent = "Error: " + e.message;
   }
 }
 
-function runCode(){
-  const code = window.editor.value;
+function interpret(code){
+  let i = 0;
+  let vars = {};
+  let output = "";
 
-  try{
-    const parser = new nearley.Parser(nearley.Grammar.fromCompiled(window.grammar));
-    parser.feed(code);
-    
-    if(parser.results.length === 0){
-      throw new Error("Parse failed");
+  function readArrows(){
+    let count = 0;
+    while(code[i] === ">"){
+      count++;
+      i++;
+    }
+    return count;
+  }
+
+  function readDots(){
+    let count = 0;
+    while(code[i] === "."){
+      count++;
+      i++;
+    }
+    return count;
+  }
+
+  function runBlock(){
+    let result = "";
+
+    while(i < code.length){
+      // skip whitespace
+      if(/\s/.test(code[i])){
+        i++;
+        continue;
+      }
+
+      // loop start
+      if(code[i] === ">"){
+        let arrows = readArrows();
+
+        // LOOP
+        if(code[i] === "["){
+          i++; // skip [
+          let bodyStart = i;
+
+          let depth = 1;
+          while(i < code.length && depth > 0){
+            if(code[i] === "[") depth++;
+            else if(code[i] === "]") depth--;
+            i++;
+          }
+
+          let bodyEnd = i - 1;
+          let body = code.slice(bodyStart, bodyEnd);
+
+          for(let j=0;j<arrows;j++){
+            result += interpret(body);
+          }
+        }
+
+        // PRINT
+        else if(code[i] === "."){
+          let dots = readDots();
+
+          if(dots === 1) result += String.fromCharCode(96 + arrows);
+          else if(dots === 2) result += String.fromCharCode(64 + arrows);
+          else if(dots === 3) result += String(arrows);
+          else result += "?";
+        }
+
+        // VAR PRINT / ASSIGN placeholders (optional)
+        else if(code[i] === "-" && code[i+1] === ">"){
+          i += 2;
+          result += (vars[arrows] || 0);
+        }
+        else if(code[i] === "-" && code[i+1] === "=" && code[i+2] === ">"){
+          i += 3;
+          let value = readDots();
+          vars[arrows] = value;
+        }
+        else {
+          // fallback
+          i++;
+        }
+      } else {
+        i++;
+      }
     }
 
-    const ast = parser.results[0];
-
-    let vars = {};
-    let out = {value:""};
-
-    execute(ast,vars,out);
-
-    document.getElementById("output").textContent = out.value;
+    return result;
   }
-  catch(e){
-    document.getElementById("output").textContent = "Error";
-  }
+
+  return runBlock();
 }
