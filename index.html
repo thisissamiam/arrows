@@ -38,6 +38,7 @@ button {
 
 #editor {
   width:65%;
+  height:100%; /* 🔥 IMPORTANT FIX */
 }
 
 #right {
@@ -74,16 +75,28 @@ button {
 </div>
 </div>
 
+<!-- Monaco Loader -->
 <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
 <script src="https://unpkg.com/nearley@2.20.1/lib/nearley.js"></script>
 
 <script>
+// 🔥 CRITICAL FIX: Worker loader
+window.MonacoEnvironment = {
+  getWorkerUrl: function () {
+    return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+      self.MonacoEnvironment = { baseUrl: 'https://unpkg.com/monaco-editor@0.44.0/min/' };
+      importScripts('https://unpkg.com/monaco-editor@0.44.0/min/vs/base/worker/workerMain.js');
+    `)}`;
+  }
+};
+
 let editor;
 
 require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
+
 require(['vs/editor/editor.main'], function () {
 
-  // 🎨 CUSTOM LANGUAGE COLORING
+  // 🎨 CUSTOM LANGUAGE
   monaco.languages.register({ id: "customLang" });
 
   monaco.languages.setMonarchTokensProvider("customLang", {
@@ -113,10 +126,11 @@ require(['vs/editor/editor.main'], function () {
     language: "customLang",
     theme: "customTheme",
     automaticLayout: true,
-    minimap: { enabled: false }
+    minimap: { enabled: false },
+    fontSize: 14,
+    lineNumbers: "on"
   });
 
-  // 🔄 LIVE ERROR CHECK
   editor.onDidChangeModelContent(() => validate());
 });
 
@@ -175,33 +189,37 @@ function execute(ast, vars, out){
 }
 
 
-// ===== ERROR SYSTEM =====
-function getError(code, e){
-  let msg = "Syntax error";
-  let col = 1;
+// ===== ERROR SYSTEM (IMPROVED) =====
+function getError(code){
+  let stack = [];
+
+  for(let i=0;i<code.length;i++){
+    if(code[i]==="[") stack.push(i);
+    if(code[i]==="]"){
+      if(stack.length===0){
+        return {msg:"Unexpected ]", col:i+1};
+      }
+      stack.pop();
+    }
+  }
+
+  if(stack.length>0){
+    return {msg:"Missing ]", col:stack.pop()+1};
+  }
 
   if(code.trim().startsWith(".")){
-    msg = "Must start with '>'";
-    col = code.indexOf('.')+1;
-  }
-  else if(code.includes("[") && !code.includes("]")){
-    msg = "Missing ]";
-    col = code.lastIndexOf("[")+1;
-  }
-  else if(code.includes("]") && !code.includes("[")){
-    msg = "Unexpected ]";
-    col = code.indexOf("]")+1;
-  }
-  else if(code.includes("->") && !code.includes("-=>")){
-    msg = "Variable not set";
-    col = code.indexOf("->")+1;
+    return {msg:"Must start with '>'", col:1};
   }
 
-  return {msg, col};
+  if(code.includes("->") && !code.includes("-=>")){
+    return {msg:"Variable not set", col:code.indexOf("->")+1};
+  }
+
+  return {msg:"Syntax error", col:1};
 }
 
 
-// ===== VALIDATE (LIVE) =====
+// ===== VALIDATE =====
 function validate(){
   const model = editor.getModel();
   const code = editor.getValue();
@@ -213,7 +231,7 @@ function validate(){
     monaco.editor.setModelMarkers(model, "owner", []);
   }
   catch(e){
-    const err = getError(code,e);
+    const err = getError(code);
 
     monaco.editor.setModelMarkers(model, "owner", [{
       startLineNumber:1,
