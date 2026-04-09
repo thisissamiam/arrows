@@ -1,17 +1,21 @@
-body {
-  margin:0;
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* ❗ disables page scrolling */
   font-family: monospace;
   background:#0f1117;
   color:#e6edf3;
-  height:100vh;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden; /* ❗ disables page scroll */
+}
+
+/* BODY LAYOUT */
+body {
+  display: flex;
+  flex-direction: column;
 }
 
 /* TOP BAR */
 #topbar {
-  height:50px;
+  height: 50px;
   background:#161b22;
   display:flex;
   align-items:center;
@@ -38,20 +42,20 @@ button:hover {
   background:#2ea043;
 }
 
-/* MAIN LAYOUT */
+/* MAIN AREA */
 #main {
   display:flex;
-  flex:1;
-  height:100%;
+  height: calc(100vh - 50px); /* account for topbar */
+  overflow: hidden;
 }
 
-/* EDITOR SECTION */
+/* EDITOR SIDE */
 #editorContainer {
-  width:65%;
-  display:flex;
+  width: 65%;
+  display: flex;
   background:#0d1117;
   border-right:1px solid #30363d;
-  height:100%;
+  overflow: hidden;
 }
 
 /* LINE NUMBERS */
@@ -62,12 +66,11 @@ button:hover {
   color:#6e7681;
   user-select:none;
 
-  font-family: monospace;
   font-size:14px;
   line-height:1.4;
-
-  overflow:hidden;
   min-width:40px;
+
+  overflow: hidden;
 }
 
 #lineNumbers div {
@@ -84,21 +87,19 @@ button:hover {
   background:#0d1117;
   color:#e6edf3;
 
-  font-family: monospace;
   font-size:14px;
   line-height:1.4;
 
   white-space:pre;
-
-  overflow:auto; /* internal scrolling */
+  overflow:auto;
 }
 
-/* RIGHT PANEL */
+/* OUTPUT SIDE */
 #right {
-  width:35%;
+  width: 35%;
   display:flex;
   flex-direction:column;
-  height:100%;
+  overflow: hidden;
 }
 
 #outputHeader {
@@ -114,38 +115,45 @@ button:hover {
   white-space:pre-wrap;
   font-size:14px;
 
-  overflow:auto; /* internal scrolling */
+  overflow:auto;
 }
 
 /* ========================= */
-/* CUSTOM SCROLLBAR STYLING  */
+/* CUSTOM SCROLLBARS */
 /* ========================= */
 
-/* Chrome / Edge / ChromeOS */
+/* Editor scrollbar */
+#editor::-webkit-scrollbar {
+  width: 10px;
+}
 
-#editor::-webkit-scrollbar,
+#editor::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+#editor::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 6px;
+}
+
+#editor::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Output scrollbar */
 #output::-webkit-scrollbar {
   width: 10px;
 }
 
-#editor::-webkit-scrollbar-track,
 #output::-webkit-scrollbar-track {
   background: #0d1117;
 }
 
-#editor::-webkit-scrollbar-thumb,
 #output::-webkit-scrollbar-thumb {
   background: #30363d;
   border-radius: 6px;
 }
 
-#editor::-webkit-scrollbar-thumb:hover,
 #output::-webkit-scrollbar-thumb:hover {
   background: #484f58;
-}
-
-/* Optional: thinner scrollbar look */
-#editor::-webkit-scrollbar-corner,
-#output::-webkit-scrollbar-corner {
-  background: transparent;
 }
