@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>Custom IDE</title>
+<title>Custom IDE (Working)</title>
 
 <style>
 body {
@@ -36,9 +36,30 @@ button {
   flex:1;
 }
 
-#editor {
+#editorContainer {
   width:65%;
-  height:100%; /* 🔥 IMPORTANT FIX */
+  display:flex;
+  background:#1e1e1e;
+}
+
+#lineNumbers {
+  background:#2a2a2a;
+  padding:10px 5px;
+  text-align:right;
+  user-select:none;
+  color:#888;
+}
+
+#editor {
+  flex:1;
+  padding:10px;
+  border:none;
+  outline:none;
+  resize:none;
+  background:#1e1e1e;
+  color:#ccc;
+  font-family:monospace;
+  font-size:14px;
 }
 
 #right {
@@ -68,71 +89,35 @@ button {
 </div>
 
 <div id="main">
-<div id="editor"></div>
+<div id="editorContainer">
+<div id="lineNumbers">1</div>
+<textarea id="editor">>>>[>.]</textarea>
+</div>
+
 <div id="right">
 <div id="outputHeader">Output</div>
 <div id="output"></div>
 </div>
 </div>
 
-<!-- Monaco Loader -->
-<script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
 <script src="https://unpkg.com/nearley@2.20.1/lib/nearley.js"></script>
 
 <script>
-// 🔥 CRITICAL FIX: Worker loader
-window.MonacoEnvironment = {
-  getWorkerUrl: function () {
-    return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
-      self.MonacoEnvironment = { baseUrl: 'https://unpkg.com/monaco-editor@0.44.0/min/' };
-      importScripts('https://unpkg.com/monaco-editor@0.44.0/min/vs/base/worker/workerMain.js');
-    `)}`;
-  }
-};
+const editor = document.getElementById("editor");
+const lineNumbers = document.getElementById("lineNumbers");
 
-let editor;
+// ===== LINE NUMBERS =====
+function updateLines(){
+  const lines = editor.value.split("\n").length;
+  lineNumbers.innerHTML = Array.from({length:lines},(_,i)=>i+1).join("<br>");
+}
 
-require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
-
-require(['vs/editor/editor.main'], function () {
-
-  // 🎨 CUSTOM LANGUAGE
-  monaco.languages.register({ id: "customLang" });
-
-  monaco.languages.setMonarchTokensProvider("customLang", {
-    tokenizer: {
-      root: [
-        [/>+\\[|\\]/, "loop"],
-        [/>+-=>/, "assign"],
-        [/>+->/, "var"],
-        [/>+\\.+/, "print"],
-      ]
-    }
-  });
-
-  monaco.editor.defineTheme("customTheme", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [
-      { token: "loop", foreground: "C586C0" },
-      { token: "assign", foreground: "4FC1FF" },
-      { token: "var", foreground: "FFD700" },
-      { token: "print", foreground: "B5CEA8" }
-    ]
-  });
-
-  editor = monaco.editor.create(document.getElementById('editor'), {
-    value: ">>>[>.]",
-    language: "customLang",
-    theme: "customTheme",
-    automaticLayout: true,
-    minimap: { enabled: false },
-    fontSize: 14,
-    lineNumbers: "on"
-  });
-
-  editor.onDidChangeModelContent(() => validate());
+editor.addEventListener("input", ()=>{
+  updateLines();
+  validate();
 });
+
+updateLines();
 
 
 // ===== GRAMMAR =====
@@ -189,7 +174,7 @@ function execute(ast, vars, out){
 }
 
 
-// ===== ERROR SYSTEM (IMPROVED) =====
+// ===== ERROR CHECK =====
 function getError(code){
   let stack = [];
 
@@ -197,57 +182,44 @@ function getError(code){
     if(code[i]==="[") stack.push(i);
     if(code[i]==="]"){
       if(stack.length===0){
-        return {msg:"Unexpected ]", col:i+1};
+        return "Unexpected ] at position " + (i+1);
       }
       stack.pop();
     }
   }
 
   if(stack.length>0){
-    return {msg:"Missing ]", col:stack.pop()+1};
+    return "Missing ] at position " + (stack.pop()+1);
   }
 
   if(code.trim().startsWith(".")){
-    return {msg:"Must start with '>'", col:1};
+    return "Must start with '>'";
   }
 
   if(code.includes("->") && !code.includes("-=>")){
-    return {msg:"Variable not set", col:code.indexOf("->")+1};
+    return "Variable not set";
   }
 
-  return {msg:"Syntax error", col:1};
+  return null;
 }
 
 
 // ===== VALIDATE =====
 function validate(){
-  const model = editor.getModel();
-  const code = editor.getValue();
+  const code = editor.value;
+  const err = getError(code);
 
-  try{
-    const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-    parser.feed(code);
-
-    monaco.editor.setModelMarkers(model, "owner", []);
-  }
-  catch(e){
-    const err = getError(code);
-
-    monaco.editor.setModelMarkers(model, "owner", [{
-      startLineNumber:1,
-      startColumn:err.col,
-      endLineNumber:1,
-      endColumn:err.col+1,
-      message:err.msg,
-      severity:monaco.MarkerSeverity.Error
-    }]);
+  if(err){
+    document.getElementById("output").textContent = "⚠ " + err;
+  } else {
+    document.getElementById("output").textContent = "";
   }
 }
 
 
 // ===== RUN =====
 function runCode(){
-  const code = editor.getValue();
+  const code = editor.value;
 
   try{
     const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
