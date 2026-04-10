@@ -33,6 +33,22 @@
 <script src="language.js"></script>
 <script src="editor.js"></script>
 <script src="run.js"></script>
+<script>
+function checkSW(){
+  if (!('serviceWorker' in navigator)) {
+    alert("Service workers NOT supported");
+    return;
+  }
 
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    if (regs.length === 0) {
+      alert("NO service worker installed");
+    } else {
+      alert("Service worker IS installed");
+    }
+  });
+}
+ehcekSW()
+</script>
 </body>
 </html>
