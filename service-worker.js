@@ -1,13 +1,13 @@
 const CACHE_NAME = "arrows-cache-v1";
 
 const FILES_TO_CACHE = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/editor.js",
-  "/run.js",
-  "/language.js",
-  "/worker.js"
+  "/arrows/",
+  "/arrows/index.html",
+  "/arrows/style.css",
+  "/arrows/editor.js",
+  "/arrows/run.js",
+  "/arrows/language.js",
+  "/arrows/worker.js"
 ];
 
 self.addEventListener("install", (event) => {
