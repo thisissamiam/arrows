@@ -5,7 +5,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   window.editor = editorEl;
 
-  editorEl.value = ">>>[>.]";
+  // 🔥 LOAD SAVED CODE
+  editorEl.value = localStorage.getItem("arrow_code") || ">>>[>.]";
 
   function updateLines(){
     const lines = editorEl.value.split("\n").length;
@@ -42,12 +43,18 @@ window.addEventListener("DOMContentLoaded", () => {
     lineNumbers.scrollTop = editorEl.scrollTop;
   });
 
-  editorEl.addEventListener("input", updateLines);
+  editorEl.addEventListener("input", () => {
+    updateLines();
+
+    // 💾 AUTO SAVE
+    localStorage.setItem("arrow_code", editorEl.value);
+  });
 
   updateLines();
 
 });
 
+// 🔥 SERVICE WORKER REGISTER
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/arrows/service-worker.js")
@@ -55,3 +62,37 @@ if ("serviceWorker" in navigator) {
       .catch(err => console.log("SW failed:", err));
   });
 }
+
+// 🚀 AUTO UPDATE + FORCE RELOAD SYSTEM
+let lastVersion = null;
+let checkingUpdate = false;
+
+async function checkForUpdate() {
+  if (!navigator.onLine || checkingUpdate) return;
+  checkingUpdate = true;
+
+  try {
+    const res = await fetch("/arrows/index.html", { cache: "no-store" });
+    const text = await res.text();
+
+    if (lastVersion && lastVersion !== text) {
+      console.log("🔄 Update detected → reloading...");
+      location.reload();
+      return;
+    }
+
+    lastVersion = text;
+  } catch (e) {
+    // ignore errors
+  }
+
+  checkingUpdate = false;
+}
+
+// check every 30 seconds
+setInterval(checkForUpdate, 30000);
+
+// ⚡ instant check when internet comes back
+window.addEventListener("online", () => {
+  checkForUpdate();
+});
